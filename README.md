@@ -1,99 +1,106 @@
 # docdrift
 
-Find the lies in your docs before your AI agent believes them.
+Ache as mentiras da sua documentação antes que o seu agente de IA acredite nelas.
 
-READMEs, `CLAUDE.md`, `AGENTS.md` and personal notes describe a tree that keeps
-moving. A file gets renamed, a repository changes owner, a directory is folded
-into a monorepo, and the doc keeps saying the old thing. A human shrugs; a
-coding agent reads the doc as ground truth and acts on it.
+README, `CLAUDE.md`, `AGENTS.md` e notas pessoais descrevem uma árvore que não para de mudar. Um
+arquivo é renomeado, um repositório troca de dono, uma pasta vai parar dentro de um monorepo, e a
+doc continua dizendo a coisa antiga. Uma pessoa desconfia; um agente de código lê a doc como
+verdade e age em cima dela.
 
-`docdrift` pulls checkable claims out of markdown and verifies them against the
-filesystem and, optionally, GitHub:
+O `docdrift` extrai do markdown as afirmações que dá para checar e confere cada uma contra o
+disco e, se você pedir, contra o GitHub:
 
-- paths in inline code: `` `internal/api/server.go` ``, `` `scripts/` ``
-- relative markdown links: `[guide](docs/guide.md)`
-- GitHub repositories: `github.com/owner/repo`, including inside code blocks
-- home paths (`~/.config/x`, `/home/you/...`), when you ask for them
+- caminhos em código inline: `` `internal/api/server.go` ``, `` `scripts/` ``
+- links relativos: `[guia](docs/guia.md)`
+- repositórios do GitHub: `github.com/dono/repo`, inclusive dentro de bloco de código
+- caminhos da home (`~/.config/x`, `/home/voce/...`), quando você pede
 
-When a path is gone, it looks for a file with the same name elsewhere in the
-repository and suggests where it went:
+Quando um caminho sumiu, ele procura um arquivo com o mesmo nome em outro lugar do repositório e
+sugere para onde foi:
 
 ```
-GAME_2D.md:25: path does not exist: src/shared/
-    maybe moved to: game/java/src/shared
-README.md:22: github repository was renamed to jvS0uzx/gourmetiz-app: JoaoVbsz/gourmetiz-app
+GAME_2D.md:25: caminho não existe: src/shared/
+    talvez movido para: game/java/src/shared
+README.md:22: repositório no GitHub foi renomeado para jvS0uzx/gourmetiz-app: JoaoVbsz/gourmetiz-app
 ```
 
-## Install
+## Instalação
 
 ```sh
 go install github.com/jvS0uzx/docdrift/cmd/docdrift@latest
 ```
 
-## Use
+## Uso
 
 ```sh
-docdrift                       # every .md under the current directory
-docdrift README.md docs/       # specific files and directories
-docdrift -github .             # also check GitHub repositories (GITHUB_TOKEN or GH_TOKEN)
-docdrift -format json . > drift.json
+docdrift                       # todo .md abaixo do diretório atual
+docdrift README.md docs/       # arquivos e diretórios específicos
+docdrift -github .             # confere também os repositórios (GITHUB_TOKEN ou GH_TOKEN)
+docdrift -formato json . > drift.json
 ```
 
-Exit status is `1` when there are findings, `2` on usage errors, `0` otherwise
-(or always `0` with `-exit-zero`), so it drops into CI as is.
+O código de saída é `1` quando há achados, `2` em erro de uso e `0` caso contrário (ou sempre `0`
+com `-sair-zero`), então entra no CI sem adaptação.
 
-| Flag | Effect |
+| Flag | Efeito |
 |---|---|
-| `-github` | Look up every `github.com/owner/repo` reference. Reports repositories that are gone, private, renamed or transferred. |
-| `-home` | Check `~/` paths and absolute paths under your home directory. Meant for personal notes about the machine running the check. |
-| `-also DIR` | Extra directory relative paths may resolve against, for docs that describe a sibling repository. Repeatable. |
-| `-exclude GLOB` | Skip files and directories by name, e.g. `-exclude Releases -exclude 'CHANGELOG*'`. Repeatable. |
-| `-strict` | Report paths whose first segment exists nowhere in the root (see below). |
-| `-history` | Also check lines that talk about the past. |
-| `-format json` | Machine-readable findings and stats. |
+| `-github` | Consulta cada referência `github.com/dono/repo`. Acusa repositório apagado, privado, renomeado ou transferido. |
+| `-home` | Checa caminhos `~/` e absolutos dentro da sua home. Feito para notas pessoais sobre a máquina que roda a checagem. |
+| `-tambem DIR` | Diretório extra contra o qual caminhos relativos podem resolver, para docs que descrevem um repositório vizinho. Repetível. |
+| `-excluir GLOB` | Pula arquivos e diretórios pelo nome, ex.: `-excluir Releases -excluir 'CHANGELOG*'`. Repetível. |
+| `-estrito` | Acusa também os caminhos sem âncora (ver abaixo). |
+| `-historico` | Checa também linhas que falam do passado ou da ausência, e notas inativas. |
+| `-formato json` | Achados e estatísticas legíveis por máquina. |
 
-## What it does not report, and why
+## O que ele não acusa, e por quê
 
-Drift detection is easy; staying quiet when a doc is right is the hard part.
-These are skipped by default and counted in the summary line:
+Detectar drift é fácil; o difícil é ficar quieto quando a doc está certa. Estes casos são pulados
+por padrão e contados na linha de resumo:
 
-- **Historical lines.** A line that says *renamed*, *removed*, *formerly*,
-  *legacy* (or the Portuguese *antigo*, *renomeado*, *era*...) describes the
-  past on purpose.
-- **Placeholders.** `<name>`, `{id}`, `[Title]`, `NNN_name.sql`,
-  `AAAAMMDD`, `your-user/`, `seu-usuario/`, `00_Sistema/.../x.md`.
-- **Generated paths.** Anything matched by the root `.gitignore`, plus
-  `node_modules`, `dist`, `build`, `target`, `.venv` and similar.
-- **Unresolved paths.** If `foo/bar.go` is missing *and* there is no `foo/`
-  anywhere in the root, the doc is most likely describing another tree. Guessing
-  which would be noise. `src/gone.go` in a repository that has `src/` is
-  reported. Use `-strict` to see the unresolved ones too.
-- **Out of scope.** Absolute paths outside your home (`/etc/nginx/...` usually
-  describes a server), home paths without `-home`, GitHub references without
-  `-github`.
+- **Nota inativa.** Frontmatter com `status:` desativada, arquivada, histórico, obsoleta ou
+  descontinuada (ou `deprecated`, `archived`), ou com essas palavras em `tags:`. A nota inteira é
+  registro do passado.
+- **Linha histórica.** Uma linha que diz *renomeado*, *removido*, *antigo*, *era* (ou *renamed*,
+  *formerly*, *legacy*) descreve o passado de propósito.
+- **Linha de negação.** Uma linha que já diz que a coisa não existe: *não existe*, *inexistente*,
+  *ausente*, *caminho morto*, *404*, ❌ (ou *does not exist*, *missing*, *gone*). A doc está
+  certa.
+- **Placeholder.** `<nome>`, `{id}`, `[Título]`, `NNN_nome.sql`, `AAAAMMDD`, `seu-usuario/`,
+  `dono/repo`, `00_Sistema/.../x.md`.
+- **Caminho gerado.** Tudo o que o `.gitignore` da raiz ignora, mais `node_modules`, `dist`,
+  `build`, `target`, `.venv` e afins.
+- **Sem âncora.** Se `foo/bar.go` não existe *e* não há `foo/` em lugar nenhum da raiz, a doc
+  provavelmente descreve outra árvore, e adivinhar qual seria ruído. `src/sumiu.go` num repositório
+  que tem `src/` é acusado. Use `-estrito` para ver esses também.
+- **Fora de escopo.** Caminho absoluto fora da sua home (`/etc/nginx/...` em geral descreve um
+  servidor), caminho da home sem `-home` e referência ao GitHub sem `-github`.
 
-Paths are tried relative to the markdown file, to the repository root and to
-each top-level directory of the root, so a doc that says `internal/db.go` <!-- docdrift:ignore -->
-in a monorepo whose code lives in `backend/internal/db.go` is not a false alarm.
+As palavras de passado e de negação são procuradas só na prosa da linha, não nos caminhos: um
+arquivo chamado `legacy.go` ou `gone.go` não desliga a checagem.
 
-### Notes that live outside the code
+Os caminhos são tentados em relação ao arquivo markdown, à raiz do repositório e a cada pasta de
+primeiro nível da raiz. Assim, uma doc que diz `internal/db.go` <!-- docdrift:ignore -->
+num monorepo cujo código fica em `backend/internal/db.go` não vira alarme falso.
 
-A note in an Obsidian vault or a wiki can say which checkout it describes with
-a `repo:` frontmatter key. Relative paths in that note resolve against it:
+### Notas que vivem fora do código
+
+Uma nota num vault do Obsidian ou numa wiki pode dizer qual checkout descreve com a chave `repo:`
+no frontmatter. Os caminhos relativos dessa nota resolvem contra ele:
 
 ```yaml
 ---
-repo: /home/you/code/my-service
+repo: /home/voce/codigo/meu-servico
 ---
 ```
 
-### Silencing a line or a file
+### Silenciando uma linha ou um arquivo
 
 ```md
-The deploy key lives in `~/.ssh/deploy_key` on the server. <!-- docdrift:ignore -->
+A deploy key fica em `~/.ssh/deploy_key` no servidor. <!-- docdrift:ignore -->
 ```
 
-`<!-- docdrift:ignore-file -->` anywhere in a file skips the whole file.
+`<!-- docdrift:ignore-file -->` em qualquer ponto do arquivo pula o arquivo inteiro. As diretivas
+só valem como comentário HTML na prosa: citadas dentro de código, como aqui, não fazem nada.
 
 ## CI
 
@@ -107,12 +114,11 @@ The deploy key lives in `~/.ssh/deploy_key` on the server. <!-- docdrift:ignore 
     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 ```
 
-## Limitations
+## Limitações
 
-- Relative tokens need a known extension or a trailing slash to count as a
-  path. `cmd/app` could be a branch, a MIME type or `owner/repo`, so it is
-  not checked.
-- Only the root `.gitignore` is read; `**` in the middle of a pattern matches a
-  single segment.
-- Function names, ports, environment variables and commands in docs are not
-  checked yet.
+- Um caminho relativo só conta se tiver extensão conhecida ou barra no fim. `cmd/app` pode ser
+  branch, MIME type ou `dono/repo`, então não é checado.
+- Só o `.gitignore` da raiz é lido; `**` no meio de um padrão casa um único segmento.
+- As palavras de passado e de negação valem para a linha inteira: uma linha que nega uma coisa e
+  cita outra, viva, deixa a segunda sem checagem.
+- Nomes de função, portas, variáveis de ambiente e comandos citados na doc ainda não são checados.

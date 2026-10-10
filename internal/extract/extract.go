@@ -12,25 +12,27 @@ import (
 type Kind string
 
 const (
-	KindPath Kind = "path"
+	KindPath Kind = "caminho"
 
 	KindLink   Kind = "link"
 	KindGitHub Kind = "github"
 )
 
 type Claim struct {
-	File        string `json:"file"`
-	Line        int    `json:"line"`
-	Kind        Kind   `json:"kind"`
-	Value       string `json:"value"`
-	Historical  bool   `json:"historical,omitempty"`
+	File        string `json:"arquivo"`
+	Line        int    `json:"linha"`
+	Kind        Kind   `json:"tipo"`
+	Value       string `json:"valor"`
+	Historical  bool   `json:"historico,omitempty"`
+	Negated     bool   `json:"negado,omitempty"`
 	Placeholder bool   `json:"placeholder,omitempty"`
 }
 
 type Doc struct {
 	Claims []Claim
 
-	Root string
+	Root     string
+	Inactive bool
 }
 
 const (
@@ -42,11 +44,14 @@ var (
 	inlineCode = regexp.MustCompile("`([^`\n]+)`")
 	mdLink     = regexp.MustCompile(`\]\(([^)\s]+)(?:\s+"[^"]*")?\)`)
 	githubRef  = regexp.MustCompile(`github\.com/([A-Za-z0-9-]+)/([A-Za-z0-9._-]+)`)
+	pathLike   = regexp.MustCompile(`\S*/\S*`)
 	lineRef    = regexp.MustCompile(`:\d+(?::\d+)?$`)
 	rootInFM   = regexp.MustCompile(`(?:^|\s)((?:/|~/)\S+)`)
 
 	historical    = regexp.MustCompile(`(?i)\b(antig[oa]s?|renomead[oa]s?|era|eram|removid[oa]s?|apagad[oa]s?|movid[oa]s?|hist[óo]ric[oa]s?|deprecad[oa]s?|substitu[íi]d[oa]s?|migrad[oa]s?|antes|formerly|renamed|removed|deleted|deprecated|legacy|previously|used to|no longer)\b`)
-	placeholderCI = regexp.MustCompile(`(?i)seu[-_]?usuario|seu[-_]?repo|your[-_]?(user(name)?|org|repo|name)|\b(owner|user|org)/(repo|name)\b|<[^>]+>|\{[^}]+\}|\[[^\]]+\]|(^|/)\.\.\.(/|$)`)
+	negated       = regexp.MustCompile(`(?i)n[ãa]o\s+existe|n[ãa]o\s+h[áa](\s|$)|inexistente|ausente|\bmort[oa]s?\b|\b404\b|❌|does\s+not\s+exist|doesn't\s+exist|\bmissing\b|\bgone\b`)
+	inactive      = regexp.MustCompile(`(?i)desativad|arquivad|hist[óo]ric|obsolet|descontinuad|abandonad|deprecated|archived|inactive`)
+	placeholderCI = regexp.MustCompile(`(?i)seu[-_]?usuario|seu[-_]?repo|your[-_]?(user(name)?|org|repo|name)|\b(owner|user|org|dono|usuario)/(repo|name|nome|repositorio)\b|<[^>]+>|\{[^}]+\}|\[[^\]]+\]|(^|/)\.\.\.(/|$)`)
 
 	placeholderUpper = regexp.MustCompile(`NNN|XXX|AAAA|YYYY|HHMMSS`)
 
@@ -72,7 +77,7 @@ func Parse(file string, content []byte) Doc {
 	var doc Doc
 	sc := bufio.NewScanner(bytes.NewReader(content))
 	sc.Buffer(make([]byte, 0, 64*1024), 4*1024*1024)
-	n, inFence, inFrontmatter := 0, false, false
+	n, inFence, inFrontmatter, fmKey := 0, false, false, ""
 	for sc.Scan() {
 		n++
 		line := sc.Text()
@@ -83,11 +88,25 @@ func Parse(file string, content []byte) Doc {
 			continue
 		}
 		if inFrontmatter {
-			if trimmed == "---" {
+			switch {
+			case trimmed == "---":
 				inFrontmatter = false
-			} else if strings.HasPrefix(trimmed, "repo:") {
-				if m := rootInFM.FindStringSubmatch(strings.TrimPrefix(trimmed, "repo:")); m != nil {
-					doc.Root = m[1]
+			case strings.HasPrefix(trimmed, "- "):
+				if (fmKey == "status" || fmKey == "tags") && inactive.MatchString(trimmed) {
+					doc.Inactive = true
+				}
+			default:
+				key, value, _ := strings.Cut(trimmed, ":")
+				fmKey = strings.ToLower(strings.TrimSpace(key))
+				switch fmKey {
+				case "repo":
+					if m := rootInFM.FindStringSubmatch(value); m != nil {
+						doc.Root = m[1]
+					}
+				case "status", "tags":
+					if inactive.MatchString(value) {
+						doc.Inactive = true
+					}
 				}
 			}
 			continue
@@ -106,11 +125,13 @@ func Parse(file string, content []byte) Doc {
 			}
 		}
 
-		hist := historical.MatchString(line)
+		words := pathLike.ReplaceAllString(inlineCode.ReplaceAllString(line, " "), " ")
+		hist := historical.MatchString(words)
+		neg := negated.MatchString(words)
 		add := func(k Kind, v string) {
 			doc.Claims = append(doc.Claims, Claim{
 				File: file, Line: n, Kind: k, Value: v, Historical: hist,
-				Placeholder: isPlaceholder(v),
+				Negated: neg, Placeholder: isPlaceholder(v),
 			})
 		}
 

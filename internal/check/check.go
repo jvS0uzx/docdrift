@@ -18,9 +18,9 @@ import (
 
 type Finding struct {
 	extract.Claim
-	Reason      string   `json:"reason"`
-	Root        string   `json:"root,omitempty"`
-	Suggestions []string `json:"suggestions,omitempty"`
+	Reason      string   `json:"motivo"`
+	Root        string   `json:"raiz,omitempty"`
+	Suggestions []string `json:"sugestoes,omitempty"`
 }
 
 type Options struct {
@@ -37,14 +37,16 @@ type Options struct {
 }
 
 type Stats struct {
-	Files       int `json:"files"`
-	Claims      int `json:"claims"`
-	Findings    int `json:"findings"`
-	Historical  int `json:"historical"`
+	Files       int `json:"arquivos"`
+	Claims      int `json:"afirmacoes"`
+	Findings    int `json:"achados"`
+	Inactive    int `json:"nota_inativa"`
+	Historical  int `json:"historico"`
+	Negated     int `json:"negado"`
 	Placeholder int `json:"placeholder"`
-	Ignored     int `json:"ignored"`
-	Unresolved  int `json:"unresolved"`
-	OutOfScope  int `json:"out_of_scope"`
+	Ignored     int `json:"gerado"`
+	Unresolved  int `json:"sem_ancora"`
+	OutOfScope  int `json:"fora_de_escopo"`
 }
 
 var generated = map[string]bool{
@@ -102,11 +104,17 @@ func (c *Checker) File(file string, content []byte) []Finding {
 	for _, cl := range doc.Claims {
 		c.Stats.Claims++
 		switch {
+		case doc.Inactive && !c.opt.History:
+			c.Stats.Inactive++
+			continue
 		case cl.Placeholder:
 			c.Stats.Placeholder++
 			continue
 		case cl.Historical && !c.opt.History:
 			c.Stats.Historical++
+			continue
+		case cl.Negated && !c.opt.History:
+			c.Stats.Negated++
 			continue
 		}
 		var f *Finding
@@ -137,7 +145,7 @@ func (c *Checker) path(cl extract.Claim, fileDir string, r *root) *Finding {
 		if exists(p) {
 			return nil
 		}
-		return &Finding{Claim: cl, Reason: "absolute path does not exist"}
+		return &Finding{Claim: cl, Reason: "caminho absoluto não existe"}
 	}
 
 	var candidates []string
@@ -168,9 +176,9 @@ func (c *Checker) path(cl extract.Claim, fileDir string, r *root) *Finding {
 		c.Stats.Unresolved++
 		return nil
 	}
-	reason := "path does not exist"
+	reason := "caminho não existe"
 	if cl.Kind == extract.KindLink {
-		reason = "link target does not exist"
+		reason = "destino do link não existe"
 	}
 	return &Finding{Claim: cl, Reason: reason, Root: r.dir, Suggestions: r.suggest(rel)}
 }
@@ -235,13 +243,13 @@ func (c *Checker) lookupGitHub(repo string) ghResult {
 		}
 		if json.NewDecoder(resp.Body).Decode(&body) == nil && !strings.EqualFold(body.FullName, repo) {
 
-			return ghResult{reason: "github repository was renamed to " + body.FullName}
+			return ghResult{reason: "repositório no GitHub foi renomeado para " + body.FullName}
 		}
 		return ghResult{}
 	case http.StatusNotFound:
-		return ghResult{reason: "github repository not found (or private without access)"}
+		return ghResult{reason: "repositório no GitHub não encontrado (ou privado sem acesso)"}
 	default:
-		c.ghDown = fmt.Sprintf("GitHub API answered %s", resp.Status)
+		c.ghDown = fmt.Sprintf("a API do GitHub respondeu %s", resp.Status)
 		return ghResult{}
 	}
 }

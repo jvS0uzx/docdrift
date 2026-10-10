@@ -27,18 +27,18 @@ func main() {
 func run(args []string, stdout, stderr io.Writer) int {
 	fl := flag.NewFlagSet("docdrift", flag.ContinueOnError)
 	fl.SetOutput(stderr)
-	format := fl.String("format", "text", "output format: text or json")
-	history := fl.Bool("history", false, "also check lines that describe the past (renamed, removed, antigo...)")
-	gh := fl.Bool("github", false, "check github.com/owner/repo references against the GitHub API (uses GITHUB_TOKEN or GH_TOKEN)")
-	home := fl.Bool("home", false, "check ~/ and absolute paths under the home directory (for personal notes about this machine)")
-	strict := fl.Bool("strict", false, "report paths whose first segment exists nowhere in the root (usually references to another tree)")
-	exitZero := fl.Bool("exit-zero", false, "exit 0 even when findings exist")
-	showVersion := fl.Bool("version", false, "print version")
+	format := fl.String("formato", "texto", "formato da saída: texto ou json")
+	history := fl.Bool("historico", false, "checa também linhas que falam do passado ou da ausência (renomeado, não existe...) e notas inativas")
+	gh := fl.Bool("github", false, "confere referências github.com/dono/repo na API do GitHub (usa GITHUB_TOKEN ou GH_TOKEN)")
+	home := fl.Bool("home", false, "checa ~/ e caminhos absolutos dentro da home (para notas pessoais sobre esta máquina)")
+	strict := fl.Bool("estrito", false, "acusa caminhos cujo primeiro segmento não existe em lugar nenhum da raiz (em geral, outra árvore)")
+	exitZero := fl.Bool("sair-zero", false, "sai com 0 mesmo havendo achados")
+	showVersion := fl.Bool("versao", false, "mostra a versão")
 	var also, exclude multi
-	fl.Var(&also, "also", "extra directory relative paths may resolve against (repeatable)")
-	fl.Var(&exclude, "exclude", "skip files or directories whose name matches this glob, e.g. Releases or 'CHANGELOG*' (repeatable)")
+	fl.Var(&also, "tambem", "diretório extra contra o qual caminhos relativos podem resolver (repetível)")
+	fl.Var(&exclude, "excluir", "pula arquivos ou diretórios cujo nome casa com este glob, ex.: Releases ou 'CHANGELOG*' (repetível)")
 	fl.Usage = func() {
-		fmt.Fprintf(stderr, "usage: docdrift [flags] [path ...]\n\nScans markdown files (default: current directory) and reports paths,\nlinks and GitHub repositories that no longer exist.\n\nflags:\n")
+		fmt.Fprintf(stderr, "uso: docdrift [flags] [caminho ...]\n\nVarre arquivos markdown (padrão: diretório atual) e acusa caminhos,\nlinks e repositórios do GitHub que não existem mais.\n\nflags:\n")
 		fl.PrintDefaults()
 	}
 	if err := fl.Parse(args); err != nil {
@@ -48,8 +48,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stdout, version)
 		return 0
 	}
-	if *format != "text" && *format != "json" {
-		fmt.Fprintf(stderr, "docdrift: unknown format %q\n", *format)
+	if *format != "texto" && *format != "json" {
+		fmt.Fprintf(stderr, "docdrift: formato desconhecido %q\n", *format)
 		return 2
 	}
 
@@ -93,22 +93,22 @@ func run(args []string, stdout, stderr io.Writer) int {
 		enc := json.NewEncoder(stdout)
 		enc.SetIndent("", "  ")
 		_ = enc.Encode(struct {
-			Findings []check.Finding `json:"findings"`
-			Stats    check.Stats     `json:"stats"`
+			Findings []check.Finding `json:"achados"`
+			Stats    check.Stats     `json:"estatisticas"`
 		}{nonNil(findings), c.Stats})
 	} else {
 		for _, f := range findings {
 			fmt.Fprintf(stdout, "%s:%d: %s: %s\n", f.File, f.Line, f.Reason, f.Value)
 			for _, s := range f.Suggestions {
-				fmt.Fprintf(stdout, "    maybe moved to: %s\n", s)
+				fmt.Fprintf(stdout, "    talvez movido para: %s\n", s)
 			}
 		}
 		s := c.Stats
-		fmt.Fprintf(stderr, "%d files, %d claims, %d findings (skipped: %d historical, %d placeholder, %d ignored, %d unresolved, %d out of scope)\n",
-			s.Files, s.Claims, s.Findings, s.Historical, s.Placeholder, s.Ignored, s.Unresolved, s.OutOfScope)
+		fmt.Fprintf(stderr, "%d arquivos, %d afirmações, %d achados (pulados: %d em nota inativa, %d histórico, %d negação, %d placeholder, %d gerado, %d sem âncora, %d fora de escopo)\n",
+			s.Files, s.Claims, s.Findings, s.Inactive, s.Historical, s.Negated, s.Placeholder, s.Ignored, s.Unresolved, s.OutOfScope)
 	}
 	if why := c.GitHubUnavailable(); why != "" {
-		fmt.Fprintln(stderr, "docdrift: GitHub checks stopped:", why)
+		fmt.Fprintln(stderr, "docdrift: verificação no GitHub interrompida:", why)
 	}
 
 	if len(findings) > 0 && !*exitZero {

@@ -44,7 +44,7 @@ func TestParse(t *testing.T) {
 		"The old name was `src/legacy.go`, since renamed.\n" +
 		"Skip `src/skip.go` <!-- docdrift:ignore -->\n" +
 		"Clone github.com/jvS0uzx/dock_keeper.git and see github.com/orgs/x.\n" +
-		"Template `migrations/NNN_name.sql` and `seuusuario/repo/x.md`, see github.com/owner/repo.\n" +
+		"Template `migrations/NNN_name.sql` and `seuusuario/repo/x.md`, see github.com/owner/repo e github.com/dono/repo.\n" +
 		"Also `notes/[Title].md` and `00_Sistema/.../Infra.md`.\n"
 
 	doc := Parse("n.md", []byte(md))
@@ -69,6 +69,7 @@ func TestParse(t *testing.T) {
 		{KindPath, "migrations/NNN_name.sql", 11},
 		{KindPath, "seuusuario/repo/x.md", 11},
 		{KindGitHub, "owner/repo", 11},
+		{KindGitHub, "dono/repo", 11},
 		{KindPath, "notes/[Title].md", 12},
 		{KindPath, "00_Sistema/.../Infra.md", 12},
 	}
@@ -105,9 +106,39 @@ func TestDocumentedDirectivesDoNotApply(t *testing.T) {
 	}
 }
 
+func TestNegatedLines(t *testing.T) {
+	cases := map[string]bool{
+		"`a/b.go` ❌ não existe":                true,
+		"o diretório `a/b/` é inexistente":     true,
+		"`a/b.csv` — caminho morto":            true,
+		"`a/b.go` dá 404":                      true,
+		"não há `a/b.go` nesta máquina":        true,
+		"`a/b.go` does not exist anymore":      true,
+		"`a/b.go` está em uso":                 false,
+		"`a/b.go` mostra a hora":               false,
+		"`a/b.go` tem 4040 linhas":             false,
+		"veja `a/b.go`, a mortalha é metáfora": false,
+	}
+	for line, want := range cases {
+		doc := Parse("n.md", []byte(line+"\n"))
+		if len(doc.Claims) != 1 || doc.Claims[0].Negated != want {
+			t.Errorf("%q: got %+v, want Negated=%v", line, doc.Claims, want)
+		}
+	}
+}
+
 func TestParseEnvExampleIsNotPlaceholder(t *testing.T) {
 	doc := Parse("n.md", []byte("Copy `backend/.env.example`.\n"))
 	if len(doc.Claims) != 1 || doc.Claims[0].Placeholder {
 		t.Fatalf("got %+v", doc.Claims)
+	}
+}
+
+func TestPathWordsDoNotTriggerRules(t *testing.T) {
+	md := "`src/gone.go` e `src/legacy.go`, veja github.com/me/gone e [x](old/antigo.md)\n"
+	for _, c := range Parse("n.md", []byte(md)).Claims {
+		if c.Historical || c.Negated {
+			t.Errorf("%s: Historical=%v Negated=%v", c.Value, c.Historical, c.Negated)
+		}
 	}
 }

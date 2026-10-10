@@ -54,6 +54,7 @@ func TestFile(t *testing.T) {
 		"`migrations/NNN_name.sql` is a template",
 		"`internal/db.go` lives under backend/ in this monorepo",
 		"`Releases/2026/note.md` belongs to some other tree",
+		"`src/hooks/post.sh` ❌ não existe mais",
 	}, "\n")
 	write(t, readme, md)
 
@@ -71,10 +72,10 @@ func TestFile(t *testing.T) {
 	if s := got["src/shared/"].Suggestions; len(s) != 1 || s[0] != "game/java/src/shared" {
 		t.Errorf("suggestions = %v", s)
 	}
-	if got["docs/missing.md"].Reason != "link target does not exist" {
+	if got["docs/missing.md"].Reason != "destino do link não existe" {
 		t.Errorf("reason = %q", got["docs/missing.md"].Reason)
 	}
-	want := Stats{Files: 1, Claims: 15, Findings: 4, Historical: 1, Placeholder: 1, Ignored: 2, Unresolved: 1, OutOfScope: 1}
+	want := Stats{Files: 1, Claims: 16, Findings: 4, Historical: 1, Negated: 1, Placeholder: 1, Ignored: 2, Unresolved: 1, OutOfScope: 1}
 	if c.Stats != want {
 		t.Errorf("stats = %+v, want %+v", c.Stats, want)
 	}
@@ -85,6 +86,31 @@ func TestHomePathsNeedOptIn(t *testing.T) {
 	got := c.File(filepath.Join(t.TempDir(), "a.md"), []byte("`~/.my.cnf`\n"))
 	if len(got) != 0 || c.Stats.OutOfScope != 1 {
 		t.Fatalf("got %+v, stats %+v", got, c.Stats)
+	}
+}
+
+func TestInactiveNoteIsSkipped(t *testing.T) {
+	repo := t.TempDir()
+	for _, fm := range []string{"status: DESATIVADA", "tags: [automacao, historico]", "tags:\n  - projeto\n  - arquivado"} {
+		md := "---\n" + fm + "\n---\n`src/gone.go`\n"
+		c := New(Options{Home: t.TempDir()})
+		if got := c.File(filepath.Join(repo, "a.md"), []byte(md)); len(got) != 0 || c.Stats.Inactive != 1 {
+			t.Errorf("%q: got %+v, stats %+v", fm, got, c.Stats)
+		}
+		c = New(Options{Home: t.TempDir(), History: true})
+		write(t, filepath.Join(repo, "src", "keep.go"), "")
+		if got := c.File(filepath.Join(repo, "a.md"), []byte(md)); len(got) != 1 {
+			t.Errorf("%q with History: got %+v", fm, got)
+		}
+	}
+}
+
+func TestActiveStatusIsChecked(t *testing.T) {
+	repo := t.TempDir()
+	write(t, filepath.Join(repo, "src", "keep.go"), "")
+	md := "---\nstatus: ativo\n---\n`src/gone.go`\n"
+	if got := New(Options{Home: t.TempDir()}).File(filepath.Join(repo, "a.md"), []byte(md)); len(got) != 1 {
+		t.Fatalf("got %+v", got)
 	}
 }
 
@@ -131,7 +157,7 @@ func TestGitHub(t *testing.T) {
 	if len(fs) != 3 {
 		t.Fatalf("got %+v", fs)
 	}
-	if !strings.Contains(fs[0].Reason, "renamed to me/new") || !strings.Contains(fs[1].Reason, "not found") {
+	if !strings.Contains(fs[0].Reason, "renomeado para me/new") || !strings.Contains(fs[1].Reason, "não encontrado") {
 		t.Errorf("reasons: %q, %q", fs[0].Reason, fs[1].Reason)
 	}
 	if calls != 3 {
