@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/docdrift.png" alt="docdrift" width="320">
+</p>
+
 # docdrift
 
 Ache as mentiras da sua documentação antes que o seu agente de IA acredite nelas.
