@@ -43,15 +43,17 @@ const (
 var (
 	inlineCode = regexp.MustCompile("`([^`\n]+)`")
 	mdLink     = regexp.MustCompile(`\]\(([^)\s]+)(?:\s+"[^"]*")?\)`)
-	githubRef  = regexp.MustCompile(`github\.com/([A-Za-z0-9-]+)/([A-Za-z0-9._-]+)`)
-	pathLike   = regexp.MustCompile(`\S*/\S*`)
-	lineRef    = regexp.MustCompile(`:\d+(?::\d+)?$`)
-	rootInFM   = regexp.MustCompile(`(?:^|\s)((?:/|~/)\S+)`)
+	// The leading class keeps subdomains out: docs.github.com/en/... and
+	// cli.github.com/manual/... are pages, not repositories.
+	githubRef = regexp.MustCompile(`(?:^|[^A-Za-z0-9.-])(?:www\.)?github\.com/([A-Za-z0-9-]+)/([A-Za-z0-9._-]+)`)
+	pathLike  = regexp.MustCompile(`\S*/\S*`)
+	lineRef   = regexp.MustCompile(`:\d+(?::\d+)?$`)
+	rootInFM  = regexp.MustCompile(`(?:^|\s)((?:/|~/)\S+)`)
 
 	historical    = regexp.MustCompile(`(?i)\b(antig[oa]s?|renomead[oa]s?|era|eram|removid[oa]s?|apagad[oa]s?|movid[oa]s?|hist[óo]ric[oa]s?|deprecad[oa]s?|substitu[íi]d[oa]s?|migrad[oa]s?|antes|formerly|renamed|removed|deleted|deprecated|legacy|previously|used to|no longer)\b`)
-	negated       = regexp.MustCompile(`(?i)n[ãa]o\s+existe|n[ãa]o\s+h[áa](\s|$)|inexistente|ausente|\bmort[oa]s?\b|\b404\b|❌|does\s+not\s+exist|doesn't\s+exist|\bmissing\b|\bgone\b`)
+	negated       = regexp.MustCompile(`(?i)n[ãa]o\s+existe|n[ãa]o\s+h[áa](\s|$)|inexistente|ausente|\bmort[oa]s?\b|\b404\b|❌|does\s+not\s+exist|doesn't\s+exist|\bthere\s+(is|are)\s+no\b|\bmissing\b|\bgone\b`)
 	inactive      = regexp.MustCompile(`(?i)desativad|arquivad|hist[óo]ric|obsolet|descontinuad|abandonad|deprecated|archived|inactive`)
-	placeholderCI = regexp.MustCompile(`(?i)seu[-_]?usuario|seu[-_]?repo|your[-_]?(user(name)?|org|repo|name)|\b(owner|user|org|dono|usuario)/(repo|name|nome|repositorio)\b|<[^>]+>|\{[^}]+\}|\[[^\]]+\]|(^|/)\.\.\.(/|$)`)
+	placeholderCI = regexp.MustCompile(`(?i)seu[-_]?usuario|seu[-_]?repo|your[-_]?(user(name)?|org|repo|name)|\b(owner|user|org|dono|usuario)/(repo|name|nome|repositorio)\b|\bfoo/bar\b|\bmy[-_]?(org|user(name)?|name|repo|project)\b|<[^>]+>|\{[^}]+\}|\[[^\]]+\]|(^|/)\.\.\.(/|$)`)
 
 	placeholderUpper = regexp.MustCompile(`NNN|XXX|AAAA|YYYY|HHMMSS`)
 
@@ -59,9 +61,20 @@ var (
 		"orgs": true, "settings": true, "features": true, "sponsors": true, "marketplace": true,
 		"topics": true, "apps": true, "login": true, "about": true, "pricing": true,
 		"enterprise": true, "site": true, "notifications": true, "new": true,
+		"user-attachments": true, "collections": true, "trending": true, "explore": true,
+		"search": true, "codespaces": true, "advisories": true, "issues": true, "pulls": true,
+		"mcp": true, "open-source": true, "resources": true, "solutions": true, "security": true,
+		"customer-stories": true, "readme": true, "team": true, "premium-support": true,
 	}
 
 	knownExt = map[string]bool{}
+
+	goIdent = regexp.MustCompile(`\.[A-Z][A-Za-z0-9_]*$`)
+
+	// Owners nobody links to on purpose: github.com/your/repo, github.com/foo/x.
+	placeholderOwner = regexp.MustCompile(`(?i)^(user|some|foo|example|owner|org|username|github-organization)$|your`)
+
+	imageExt = map[string]bool{".svg": true, ".png": true, ".gif": true, ".jpg": true, ".jpeg": true, ".webp": true}
 )
 
 func init() {
@@ -150,10 +163,21 @@ func Parse(file string, content []byte) Doc {
 		for _, m := range githubRef.FindAllStringSubmatch(line, -1) {
 			owner := m[1]
 			repo := strings.TrimSuffix(strings.TrimRight(m[2], "."), ".git")
+			// Badge services embed the repo in their own URL: goreportcard.com/badge/github.com/o/r.svg
+			if e := path.Ext(repo); imageExt[strings.ToLower(e)] {
+				repo = strings.TrimSuffix(repo, e)
+			}
+			// A Go qualified identifier: github.com/google/uuid.UUID
+			if m := goIdent.FindStringIndex(repo); m != nil && m[0] > 0 {
+				repo = repo[:m[0]]
+			}
 			if githubReserved[strings.ToLower(owner)] || repo == "" {
 				continue
 			}
 			add(KindGitHub, owner+"/"+repo)
+			if placeholderOwner.MatchString(owner) {
+				doc.Claims[len(doc.Claims)-1].Placeholder = true
+			}
 		}
 	}
 	return doc

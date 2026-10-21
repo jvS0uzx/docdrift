@@ -148,9 +148,23 @@ func (c *Checker) path(cl extract.Claim, fileDir string, r *root) *Finding {
 		return &Finding{Claim: cl, Reason: "absolute path does not exist"}
 	}
 
+	// A root-relative link with no extension is a route on a docs site
+	// (/api/authentication), not a file in this tree.
+	if cl.Kind == extract.KindLink && strings.HasPrefix(v, "/") && path.Ext(strings.TrimSuffix(v, "/")) == "" && !exists(filepath.Join(r.dir, v)) {
+		c.Stats.OutOfScope++
+		return nil
+	}
+
 	var candidates []string
 	if strings.HasPrefix(v, "/") {
-		candidates = append(candidates, filepath.Join(r.dir, v))
+		// Docs sites (Mintlify, Docusaurus) serve from a subfolder, so "/" may be
+		// any directory between the file and the repository root.
+		for d := fileDir; within(d, r.dir); d = filepath.Dir(d) {
+			candidates = append(candidates, filepath.Join(d, v))
+			if d == r.dir {
+				break
+			}
+		}
 	} else {
 		candidates = append(candidates, filepath.Join(fileDir, v), filepath.Join(r.dir, v))
 
@@ -159,6 +173,13 @@ func (c *Checker) path(cl extract.Claim, fileDir string, r *root) *Finding {
 		}
 		for _, a := range c.opt.Also {
 			candidates = append(candidates, filepath.Join(a, v))
+		}
+	}
+	// Docusaurus, MkDocs and friends resolve extensionless links to the page file.
+	if cl.Kind == extract.KindLink && path.Ext(strings.TrimSuffix(v, "/")) == "" {
+		for _, p := range candidates {
+			p = strings.TrimSuffix(p, string(filepath.Separator))
+			candidates = append(candidates, p+".md", p+".mdx", filepath.Join(p, "index.md"), filepath.Join(p, "README.md"))
 		}
 	}
 	for _, p := range candidates {

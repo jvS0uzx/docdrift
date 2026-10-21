@@ -1,6 +1,9 @@
 package extract
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestPathToken(t *testing.T) {
 	cases := []struct {
@@ -114,6 +117,7 @@ func TestNegatedLines(t *testing.T) {
 		"`a/b.go` dá 404":                      true,
 		"não há `a/b.go` nesta máquina":        true,
 		"`a/b.go` does not exist anymore":      true,
+		"there is no `a/b.sh` in 3.4":          true,
 		"`a/b.go` está em uso":                 false,
 		"`a/b.go` mostra a hora":               false,
 		"`a/b.go` tem 4040 linhas":             false,
@@ -140,5 +144,23 @@ func TestPathWordsDoNotTriggerRules(t *testing.T) {
 		if c.Historical || c.Negated {
 			t.Errorf("%s: Historical=%v Negated=%v", c.Value, c.Historical, c.Negated)
 		}
+	}
+}
+
+func TestGitHubRefsThatAreNotRepositories(t *testing.T) {
+	md := "See https://docs.github.com/en/authentication and cli.github.com/manual/gh.\n" +
+		"![shot](https://github.com/user-attachments/assets/abc)\n" +
+		"[![Go Report](https://goreportcard.com/badge/github.com/spf13/cobra.svg)](x)\n" +
+		"Clone https://www.github.com/me/real or github.com/foo/bar or github.com/myorg/myrepo.\n" +
+		"Type `github.com/google/uuid.UUID`, see github.com/your/repo and github.com/mcp/goreleaser.\n"
+	var got []string
+	for _, c := range Parse("n.md", []byte(md)).Claims {
+		if c.Kind == KindGitHub && !c.Placeholder {
+			got = append(got, c.Value)
+		}
+	}
+	want := []string{"spf13/cobra", "me/real", "google/uuid"}
+	if strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Fatalf("got %v, want %v", got, want)
 	}
 }

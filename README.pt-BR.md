@@ -85,6 +85,12 @@ por padrão e contados na linha de resumo:
   que tem `src/` é acusado. Use `-strict` para ver esses também.
 - **Fora de escopo.** Caminho absoluto fora da sua home (`/etc/nginx/...` em geral descreve um
   servidor), caminho da home sem `-home` e referência ao GitHub sem `-github`.
+- **Rota de site de documentação.** Link absoluto sem extensão (`/api/authentication`) é página
+  de site, não arquivo. Link relativo sem extensão (`../guia/setup`) resolve para `setup.md`,
+  `setup.mdx` ou `setup/index.md`, como no Docusaurus e no MkDocs, e `/images/x.png` pode resolver
+  a partir de qualquer pasta entre o arquivo e a raiz.
+- **Não é repositório.** `docs.github.com/...`, `github.com/user-attachments/...`, badge terminado
+  em `.svg` e identificador Go como `github.com/google/uuid.UUID` são lidos pelo que são.
 
 As palavras de passado e de negação são procuradas só na prosa da linha, não nos caminhos: um
 arquivo chamado `legacy.go` ou `gone.go` não desliga a checagem.
@@ -119,7 +125,7 @@ Como GitHub Action:
 
 ```yaml
 - uses: actions/checkout@v4
-- uses: jvS0uzx/docdrift@v0.1.0
+- uses: jvS0uzx/docdrift@v0.1.1
   with:
     args: -github .
 ```

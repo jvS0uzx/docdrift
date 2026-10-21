@@ -177,3 +177,23 @@ func TestGitHubRateLimitStopsChecks(t *testing.T) {
 		t.Fatalf("findings %+v, unavailable %q", fs, c.GitHubUnavailable())
 	}
 }
+
+func TestDocsSiteLinks(t *testing.T) {
+	repo := t.TempDir()
+	write(t, filepath.Join(repo, ".git", "HEAD"), "ref: refs/heads/main\n")
+	write(t, filepath.Join(repo, "api", "server.go"), "")
+	write(t, filepath.Join(repo, "docs", "guide", "extractors.md"), "")
+	write(t, filepath.Join(repo, "docs", "api", "app.mdx"), "")
+	write(t, filepath.Join(repo, "docs", "intro", "index.md"), "")
+	write(t, filepath.Join(repo, "docs", "images", "shot.png"), "")
+	page := filepath.Join(repo, "docs", "middleware", "csrf.md")
+	md := strings.Join([]string{
+		"[extractors](../guide/extractors) and [app](../api/app#hooks)",
+		"[intro](../intro/) and [auth](/api/authentication) and ![shot](/images/shot.png)",
+		"[gone](../guide/missing)",
+	}, "\n")
+	got := reasons(New(Options{}).File(page, []byte(md)))
+	if len(got) != 1 || got["../guide/missing"].Reason == "" {
+		t.Fatalf("want only ../guide/missing, got %+v", got)
+	}
+}

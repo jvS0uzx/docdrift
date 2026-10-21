@@ -89,6 +89,12 @@ skipped by default and counted in the summary line:
   repository that has `src/` is reported. Use `-strict` to see these too.
 - **Out of scope.** Absolute paths outside your home (`/etc/nginx/...` usually describes a server),
   home paths without `-home`, and GitHub references without `-github`.
+- **Docs-site routes.** A root-relative link with no extension (`/api/authentication`) is a page
+  on a docs site, not a file. Extensionless relative links (`../guide/setup`) resolve to
+  `setup.md`, `setup.mdx` or `setup/index.md`, the way Docusaurus and MkDocs do, and `/images/x.png`
+  may resolve from any folder between the file and the root.
+- **Not a repository.** `docs.github.com/...`, `github.com/user-attachments/...`, badge URLs that
+  end in `.svg`, and Go identifiers like `github.com/google/uuid.UUID` are read for what they are.
 
 Past-tense and negation words are matched against the prose of the line only, not against the
 paths: a file named `legacy.go` or `gone.go` doesn't turn the check off. Both English and
@@ -124,7 +130,7 @@ As a GitHub Action:
 
 ```yaml
 - uses: actions/checkout@v4
-- uses: jvS0uzx/docdrift@v0.1.0
+- uses: jvS0uzx/docdrift@v0.1.1
   with:
     args: -github .
 ```
