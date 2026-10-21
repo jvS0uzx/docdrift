@@ -8,6 +8,10 @@
 
 Ache as mentiras da sua documentação antes que o seu agente de IA acredite nelas.
 
+<p align="center">
+  <img src="assets/demo.gif" alt="docdrift acusando um arquivo movido, um link quebrado e um repositório renomeado" width="800">
+</p>
+
 README, `CLAUDE.md`, `AGENTS.md` e notas pessoais descrevem uma árvore que não para de mudar. Um
 arquivo é renomeado, um repositório troca de dono, uma pasta vai parar dentro de um monorepo, e a
 doc continua dizendo a coisa antiga. Uma pessoa desconfia; um agente de código lê a doc como

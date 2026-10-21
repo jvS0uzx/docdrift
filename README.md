@@ -8,6 +8,10 @@
 
 Find the lies in your docs before your AI agent believes them.
 
+<p align="center">
+  <img src="assets/demo.gif" alt="docdrift finding a moved file, a broken link and a renamed repository" width="800">
+</p>
+
 READMEs, `CLAUDE.md`, `AGENTS.md` and personal notes describe a tree that keeps moving. A file gets
 renamed, a repository changes owner, a folder ends up inside a monorepo, and the doc still says the
 old thing. A person gets suspicious; a coding agent reads the doc as truth and acts on it.
