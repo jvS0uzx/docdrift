@@ -18,9 +18,9 @@ import (
 
 type Finding struct {
 	extract.Claim
-	Reason      string   `json:"motivo"`
-	Root        string   `json:"raiz,omitempty"`
-	Suggestions []string `json:"sugestoes,omitempty"`
+	Reason      string   `json:"reason"`
+	Root        string   `json:"root,omitempty"`
+	Suggestions []string `json:"suggestions,omitempty"`
 }
 
 type Options struct {
@@ -37,16 +37,16 @@ type Options struct {
 }
 
 type Stats struct {
-	Files       int `json:"arquivos"`
-	Claims      int `json:"afirmacoes"`
-	Findings    int `json:"achados"`
-	Inactive    int `json:"nota_inativa"`
-	Historical  int `json:"historico"`
-	Negated     int `json:"negado"`
+	Files       int `json:"files"`
+	Claims      int `json:"claims"`
+	Findings    int `json:"findings"`
+	Inactive    int `json:"inactive"`
+	Historical  int `json:"historical"`
+	Negated     int `json:"negated"`
 	Placeholder int `json:"placeholder"`
-	Ignored     int `json:"gerado"`
-	Unresolved  int `json:"sem_ancora"`
-	OutOfScope  int `json:"fora_de_escopo"`
+	Ignored     int `json:"generated"`
+	Unresolved  int `json:"unanchored"`
+	OutOfScope  int `json:"out_of_scope"`
 }
 
 var generated = map[string]bool{
@@ -145,7 +145,7 @@ func (c *Checker) path(cl extract.Claim, fileDir string, r *root) *Finding {
 		if exists(p) {
 			return nil
 		}
-		return &Finding{Claim: cl, Reason: "caminho absoluto não existe"}
+		return &Finding{Claim: cl, Reason: "absolute path does not exist"}
 	}
 
 	var candidates []string
@@ -176,9 +176,9 @@ func (c *Checker) path(cl extract.Claim, fileDir string, r *root) *Finding {
 		c.Stats.Unresolved++
 		return nil
 	}
-	reason := "caminho não existe"
+	reason := "path does not exist"
 	if cl.Kind == extract.KindLink {
-		reason = "destino do link não existe"
+		reason = "link target does not exist"
 	}
 	return &Finding{Claim: cl, Reason: reason, Root: r.dir, Suggestions: r.suggest(rel)}
 }
@@ -243,13 +243,13 @@ func (c *Checker) lookupGitHub(repo string) ghResult {
 		}
 		if json.NewDecoder(resp.Body).Decode(&body) == nil && !strings.EqualFold(body.FullName, repo) {
 
-			return ghResult{reason: "repositório no GitHub foi renomeado para " + body.FullName}
+			return ghResult{reason: "GitHub repository was renamed to " + body.FullName}
 		}
 		return ghResult{}
 	case http.StatusNotFound:
-		return ghResult{reason: "repositório no GitHub não encontrado (ou privado sem acesso)"}
+		return ghResult{reason: "GitHub repository not found (or private without access)"}
 	default:
-		c.ghDown = fmt.Sprintf("a API do GitHub respondeu %s", resp.Status)
+		c.ghDown = fmt.Sprintf("the GitHub API answered %s", resp.Status)
 		return ghResult{}
 	}
 }

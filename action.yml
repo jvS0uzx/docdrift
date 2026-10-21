@@ -1,0 +1,57 @@
+name: docdrift
+description: Find paths, links and GitHub repositories in your markdown that no longer exist.
+author: jvS0uzx
+branding:
+  icon: file-text
+  color: orange
+
+inputs:
+  args:
+    description: Flags and paths passed to docdrift, e.g. "-github ." or "-exclude CHANGELOG.md docs/".
+    default: .
+  github-token:
+    description: Token used by -github to look up repositories.
+    default: ${{ github.token }}
+
+runs:
+  using: composite
+  steps:
+    - name: Install docdrift
+      shell: bash
+      env:
+        REF: ${{ github.action_ref }}
+        ACTION_PATH: ${{ github.action_path }}
+      run: |
+        set -euo pipefail
+        case "$RUNNER_OS" in
+          Linux) os=linux ;; macOS) os=darwin ;; Windows) os=windows ;;
+          *) echo "unsupported runner OS: $RUNNER_OS" >&2; exit 1 ;;
+        esac
+        case "$RUNNER_ARCH" in
+          X64) arch=amd64 ;; ARM64) arch=arm64 ;;
+          *) echo "unsupported runner arch: $RUNNER_ARCH" >&2; exit 1 ;;
+        esac
+        ext=tar.gz; [ "$os" = windows ] && ext=zip
+        bin="$RUNNER_TEMP/docdrift-bin"
+        mkdir -p "$bin"
+        url="https://github.com/jvS0uzx/docdrift/releases/download/$REF/docdrift_${os}_${arch}.$ext"
+        # Pinning the action to a branch or a commit has no matching release asset,
+        # so fall back to building the checked-out source.
+        if curl -fsL "$url" -o "$RUNNER_TEMP/docdrift.$ext"; then
+          if [ "$ext" = zip ]; then unzip -q -o "$RUNNER_TEMP/docdrift.$ext" -d "$bin"
+          else tar -xzf "$RUNNER_TEMP/docdrift.$ext" -C "$bin"; fi
+        elif command -v go >/dev/null; then
+          (cd "$ACTION_PATH" && go build -o "$bin/" ./cmd/docdrift)
+        else
+          echo "no release asset for '$REF' and no Go toolchain to build it; pin the action to a release tag" >&2
+          exit 1
+        fi
+        echo "$bin" >> "$GITHUB_PATH"
+
+    - name: Run docdrift
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+        ARGS: ${{ inputs.args }}
+      # Word splitting on ARGS is intended: it carries flags and paths.
+      run: docdrift $ARGS

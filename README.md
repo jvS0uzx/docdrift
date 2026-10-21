@@ -4,109 +4,129 @@
 
 # docdrift
 
-Ache as mentiras da sua documentação antes que o seu agente de IA acredite nelas.
+**English** · [Português](README.pt-BR.md)
 
-README, `CLAUDE.md`, `AGENTS.md` e notas pessoais descrevem uma árvore que não para de mudar. Um
-arquivo é renomeado, um repositório troca de dono, uma pasta vai parar dentro de um monorepo, e a
-doc continua dizendo a coisa antiga. Uma pessoa desconfia; um agente de código lê a doc como
-verdade e age em cima dela.
+Find the lies in your docs before your AI agent believes them.
 
-O `docdrift` extrai do markdown as afirmações que dá para checar e confere cada uma contra o
-disco e, se você pedir, contra o GitHub:
+READMEs, `CLAUDE.md`, `AGENTS.md` and personal notes describe a tree that keeps moving. A file gets
+renamed, a repository changes owner, a folder ends up inside a monorepo, and the doc still says the
+old thing. A person gets suspicious; a coding agent reads the doc as truth and acts on it.
 
-- caminhos em código inline: `` `internal/api/server.go` ``, `` `scripts/` ``
-- links relativos: `[guia](docs/guia.md)`
-- repositórios do GitHub: `github.com/dono/repo`, inclusive dentro de bloco de código
-- caminhos da home (`~/.config/x`, `/home/voce/...`), quando você pede
+`docdrift` pulls the checkable claims out of your markdown and verifies each one against the disk
+and, if you ask, against GitHub:
 
-Quando um caminho sumiu, ele procura um arquivo com o mesmo nome em outro lugar do repositório e
-sugere para onde foi:
+- paths in inline code: `` `internal/api/server.go` ``, `` `scripts/` ``
+- relative links: `[guide](docs/guide.md)`
+- GitHub repositories: `github.com/owner/repo`, including inside code blocks
+- home paths (`~/.config/x`, `/home/you/...`), when you ask for them
+
+When a path is gone, it looks for a file with the same name elsewhere in the repository and
+suggests where it went:
 
 ```
-GAME_2D.md:25: caminho não existe: src/shared/
-    talvez movido para: game/java/src/shared
-README.md:22: repositório no GitHub foi renomeado para jvS0uzx/gourmetiz-app: JoaoVbsz/gourmetiz-app
+$ docdrift -github .
+AGENTS.md:4: path does not exist: internal/db/postgres.go
+    maybe moved to: api/internal/store/postgres.go
+AGENTS.md:6: link target does not exist: docs/rollback.md
+AGENTS.md:7: GitHub repository was renamed to moby/moby: docker/docker
+2 files, 8 claims, 3 findings (skipped: 0 inactive note, 1 historical, 0 negated, 0 placeholder, 0 generated, 1 unanchored, 0 out of scope)
 ```
 
-## Instalação
+Single static binary, no config file, no dependencies outside the Go standard library.
+
+## Install
 
 ```sh
 go install github.com/jvS0uzx/docdrift/cmd/docdrift@latest
 ```
 
-## Uso
+Or grab a prebuilt binary for Linux, macOS or Windows from the
+[releases page](https://github.com/jvS0uzx/docdrift/releases).
+
+## Usage
 
 ```sh
-docdrift                       # todo .md abaixo do diretório atual
-docdrift README.md docs/       # arquivos e diretórios específicos
-docdrift -github .             # confere também os repositórios (GITHUB_TOKEN ou GH_TOKEN)
-docdrift -formato json . > drift.json
+docdrift                       # every .md under the current directory
+docdrift README.md docs/       # specific files and directories
+docdrift -github .             # also check repositories (GITHUB_TOKEN or GH_TOKEN)
+docdrift -format json . > drift.json
 ```
 
-O código de saída é `1` quando há achados, `2` em erro de uso e `0` caso contrário (ou sempre `0`
-com `-sair-zero`), então entra no CI sem adaptação.
+Exit code is `1` when there are findings, `2` on usage errors and `0` otherwise (or always `0` with
+`-exit-zero`), so it drops into CI as is.
 
-| Flag | Efeito |
+| Flag | Effect |
 |---|---|
-| `-github` | Consulta cada referência `github.com/dono/repo`. Acusa repositório apagado, privado, renomeado ou transferido. |
-| `-home` | Checa caminhos `~/` e absolutos dentro da sua home. Feito para notas pessoais sobre a máquina que roda a checagem. |
-| `-tambem DIR` | Diretório extra contra o qual caminhos relativos podem resolver, para docs que descrevem um repositório vizinho. Repetível. |
-| `-excluir GLOB` | Pula arquivos e diretórios pelo nome, ex.: `-excluir Releases -excluir 'CHANGELOG*'`. Repetível. |
-| `-estrito` | Acusa também os caminhos sem âncora (ver abaixo). |
-| `-historico` | Checa também linhas que falam do passado ou da ausência, e notas inativas. |
-| `-formato json` | Achados e estatísticas legíveis por máquina. |
+| `-github` | Looks up every `github.com/owner/repo` reference. Reports deleted, private, renamed or transferred repositories. |
+| `-home` | Checks `~/` and absolute paths inside your home. Meant for personal notes about the machine running the check. |
+| `-also DIR` | Extra directory relative paths may resolve against, for docs that describe a sibling repository. Repeatable. |
+| `-exclude GLOB` | Skips files and directories by name, e.g. `-exclude Releases -exclude 'CHANGELOG*'`. Repeatable. |
+| `-strict` | Also reports unanchored paths (see below). |
+| `-history` | Also checks lines that talk about the past or about absence, and inactive notes. |
+| `-format json` | Machine-readable findings and stats. |
 
-## O que ele não acusa, e por quê
+## What it doesn't flag, and why
 
-Detectar drift é fácil; o difícil é ficar quieto quando a doc está certa. Estes casos são pulados
-por padrão e contados na linha de resumo:
+Detecting drift is easy; the hard part is staying quiet when the doc is right. These cases are
+skipped by default and counted in the summary line:
 
-- **Nota inativa.** Frontmatter com `status:` desativada, arquivada, histórico, obsoleta ou
-  descontinuada (ou `deprecated`, `archived`), ou com essas palavras em `tags:`. A nota inteira é
-  registro do passado.
-- **Linha histórica.** Uma linha que diz *renomeado*, *removido*, *antigo*, *era* (ou *renamed*,
-  *formerly*, *legacy*) descreve o passado de propósito.
-- **Linha de negação.** Uma linha que já diz que a coisa não existe: *não existe*, *inexistente*,
-  *ausente*, *caminho morto*, *404*, ❌ (ou *does not exist*, *missing*, *gone*). A doc está
-  certa.
-- **Placeholder.** `<nome>`, `{id}`, `[Título]`, `NNN_nome.sql`, `AAAAMMDD`, `seu-usuario/`,
-  `dono/repo`, `00_Sistema/.../x.md`.
-- **Caminho gerado.** Tudo o que o `.gitignore` da raiz ignora, mais `node_modules`, `dist`,
-  `build`, `target`, `.venv` e afins.
-- **Sem âncora.** Se `foo/bar.go` não existe *e* não há `foo/` em lugar nenhum da raiz, a doc
-  provavelmente descreve outra árvore, e adivinhar qual seria ruído. `src/sumiu.go` num repositório
-  que tem `src/` é acusado. Use `-estrito` para ver esses também.
-- **Fora de escopo.** Caminho absoluto fora da sua home (`/etc/nginx/...` em geral descreve um
-  servidor), caminho da home sem `-home` e referência ao GitHub sem `-github`.
+- **Inactive note.** Frontmatter with `status:` deprecated, archived, inactive or obsolete (or the
+  Portuguese equivalents), or those words in `tags:`. The whole note is a record of the past.
+- **Historical line.** A line that says *renamed*, *removed*, *formerly*, *legacy*, *used to*,
+  *no longer* describes the past on purpose.
+- **Negated line.** A line that already says the thing doesn't exist: *does not exist*,
+  *missing*, *gone*, *404*, ❌. The doc is right.
+- **Placeholder.** `<name>`, `{id}`, `[Title]`, `NNN_name.sql`, `YYYYMMDD`, `your-username/`,
+  `owner/repo`, `docs/.../x.md`.
+- **Generated path.** Anything the root `.gitignore` ignores, plus `node_modules`, `dist`, `build`,
+  `target`, `.venv` and friends.
+- **Unanchored.** If `foo/bar.go` doesn't exist *and* there is no `foo/` anywhere in the root, the
+  doc probably describes another tree, and guessing which one would be noise. `src/gone.go` in a
+  repository that has `src/` is reported. Use `-strict` to see these too.
+- **Out of scope.** Absolute paths outside your home (`/etc/nginx/...` usually describes a server),
+  home paths without `-home`, and GitHub references without `-github`.
 
-As palavras de passado e de negação são procuradas só na prosa da linha, não nos caminhos: um
-arquivo chamado `legacy.go` ou `gone.go` não desliga a checagem.
+Past-tense and negation words are matched against the prose of the line only, not against the
+paths: a file named `legacy.go` or `gone.go` doesn't turn the check off. Both English and
+Portuguese wording is recognized.
 
-Os caminhos são tentados em relação ao arquivo markdown, à raiz do repositório e a cada pasta de
-primeiro nível da raiz. Assim, uma doc que diz `internal/db.go` <!-- docdrift:ignore -->
-num monorepo cujo código fica em `backend/internal/db.go` não vira alarme falso.
+Paths are tried relative to the markdown file, to the repository root and to every top-level
+folder of the root. So a doc that says `internal/db.go` <!-- docdrift:ignore -->
+in a monorepo whose code lives in `backend/internal/db.go` doesn't raise a false alarm.
 
-### Notas que vivem fora do código
+### Notes that live outside the code
 
-Uma nota num vault do Obsidian ou numa wiki pode dizer qual checkout descreve com a chave `repo:`
-no frontmatter. Os caminhos relativos dessa nota resolvem contra ele:
+A note in an Obsidian vault or a wiki can say which checkout it describes with a `repo:` key in its
+frontmatter. Relative paths in that note resolve against it:
 
 ```yaml
 ---
-repo: /home/voce/codigo/meu-servico
+repo: /home/you/code/my-service
 ---
 ```
 
-### Silenciando uma linha ou um arquivo
+### Silencing a line or a file
 
 ```md
-A deploy key fica em `~/.ssh/deploy_key` no servidor. <!-- docdrift:ignore -->
+The deploy key lives at `~/.ssh/deploy_key` on the server. <!-- docdrift:ignore -->
 ```
 
-`<!-- docdrift:ignore-file -->` em qualquer ponto do arquivo pula o arquivo inteiro. As diretivas
-só valem como comentário HTML na prosa: citadas dentro de código, como aqui, não fazem nada.
+`<!-- docdrift:ignore-file -->` anywhere in a file skips the whole file. Directives only count as
+an HTML comment in prose: quoted inside code, like here, they do nothing.
 
 ## CI
+
+As a GitHub Action:
+
+```yaml
+- uses: actions/checkout@v4
+- uses: jvS0uzx/docdrift@v0.1.0
+  with:
+    args: -github .
+```
+
+The action passes the workflow's `GITHUB_TOKEN` to `-github` for you. Or install the binary
+yourself:
 
 ```yaml
 - uses: actions/setup-go@v5
@@ -118,11 +138,15 @@ só valem como comentário HTML na prosa: citadas dentro de código, como aqui, 
     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 ```
 
-## Limitações
+## Limitations
 
-- Um caminho relativo só conta se tiver extensão conhecida ou barra no fim. `cmd/app` pode ser
-  branch, MIME type ou `dono/repo`, então não é checado.
-- Só o `.gitignore` da raiz é lido; `**` no meio de um padrão casa um único segmento.
-- As palavras de passado e de negação valem para a linha inteira: uma linha que nega uma coisa e
-  cita outra, viva, deixa a segunda sem checagem.
-- Nomes de função, portas, variáveis de ambiente e comandos citados na doc ainda não são checados.
+- A relative path only counts if it has a known extension or a trailing slash. `cmd/app` could be a
+  branch, a MIME type or `owner/repo`, so it isn't checked.
+- Only the root `.gitignore` is read; `**` in the middle of a pattern matches a single segment.
+- Past-tense and negation words apply to the whole line: a line that negates one thing and mentions
+  another, live one, leaves the second unchecked.
+- Function names, ports, environment variables and commands quoted in docs aren't checked yet.
+
+## License
+
+[MIT](LICENSE)

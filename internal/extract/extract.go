@@ -12,19 +12,19 @@ import (
 type Kind string
 
 const (
-	KindPath Kind = "caminho"
+	KindPath Kind = "path"
 
 	KindLink   Kind = "link"
 	KindGitHub Kind = "github"
 )
 
 type Claim struct {
-	File        string `json:"arquivo"`
-	Line        int    `json:"linha"`
-	Kind        Kind   `json:"tipo"`
-	Value       string `json:"valor"`
-	Historical  bool   `json:"historico,omitempty"`
-	Negated     bool   `json:"negado,omitempty"`
+	File        string `json:"file"`
+	Line        int    `json:"line"`
+	Kind        Kind   `json:"kind"`
+	Value       string `json:"value"`
+	Historical  bool   `json:"historical,omitempty"`
+	Negated     bool   `json:"negated,omitempty"`
 	Placeholder bool   `json:"placeholder,omitempty"`
 }
 

@@ -72,7 +72,7 @@ func TestFile(t *testing.T) {
 	if s := got["src/shared/"].Suggestions; len(s) != 1 || s[0] != "game/java/src/shared" {
 		t.Errorf("suggestions = %v", s)
 	}
-	if got["docs/missing.md"].Reason != "destino do link não existe" {
+	if got["docs/missing.md"].Reason != "link target does not exist" {
 		t.Errorf("reason = %q", got["docs/missing.md"].Reason)
 	}
 	want := Stats{Files: 1, Claims: 16, Findings: 4, Historical: 1, Negated: 1, Placeholder: 1, Ignored: 2, Unresolved: 1, OutOfScope: 1}
@@ -157,7 +157,7 @@ func TestGitHub(t *testing.T) {
 	if len(fs) != 3 {
 		t.Fatalf("got %+v", fs)
 	}
-	if !strings.Contains(fs[0].Reason, "renomeado para me/new") || !strings.Contains(fs[1].Reason, "não encontrado") {
+	if !strings.Contains(fs[0].Reason, "renamed to me/new") || !strings.Contains(fs[1].Reason, "not found") {
 		t.Errorf("reasons: %q, %q", fs[0].Reason, fs[1].Reason)
 	}
 	if calls != 3 {
