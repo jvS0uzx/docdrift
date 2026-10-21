@@ -125,7 +125,7 @@ Como GitHub Action:
 
 ```yaml
 - uses: actions/checkout@v4
-- uses: jvS0uzx/docdrift@v0.1.1
+- uses: jvS0uzx/docdrift@v0.1.2
   with:
     args: -github .
 ```

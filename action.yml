@@ -1,4 +1,4 @@
-name: docdrift
+name: docdrift markdown check
 description: Find paths, links and GitHub repositories in your markdown that no longer exist.
 author: jvS0uzx
 branding:
